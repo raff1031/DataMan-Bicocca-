@@ -1,200 +1,301 @@
 # F1 Data Management Project
 
-## Overview
+## Project Overview
 
-This project implements a comprehensive F1 (Formula 1) data management pipeline for analyzing racing data across two technical regulation cycles: 2017-2021 and 2022-2025. The system combines web scraping from the official Formula 1 website with the FastF1 and OpenF1 APIs to collect, store, and analyze race timing data.
+This project analyzes Formula 1 qualifying performance data from **2017-2025** to study the impact of the **2022 ground effect regulations** and **budget cap** on car performance and field competitiveness.
+
+### Research Question
+
+> _How did ground effect regulations and budget cap change car performance in Formula 1?_
+
+---
+
+## Data Sources Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     DATA ACQUISITION LAYER                       │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ Jolpica API  │  │ Wikipedia API│  │  OpenAI API  │          │
+│  │ (REST)       │  │ (Scraping)   │  │ (LLM)        │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+│         │                  │                  │                  │
+│         ▼                  ▼                  ▼                  │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │ Qualifying   │  │  Season      │  │ Regulations  │          │
+│  │ Results      │  │  Summaries   │  │ Extraction   │          │
+│  │ 3853 records │  │  9 seasons   │  │ 36 records   │          │
+│  └──────────────┘  └──────────────┘  └──────────────┘          │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │  DATA INTEGRATION│
+                    │  (Merge/Join)   │
+                    └────────┬────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │   MongoDB       │
+                    │   Storage       │
+                    └─────────────────┘
+```
+
+---
+
+## Prerequisites
+
+```bash
+pip install pandas numpy requests openai pymongo matplotlib
+```
+
+---
+
+## Execution Sequence
+
+### STEP 0: Environment Setup
+
+```powershell
+# Set OpenAI API key (PowerShell)
+$env:OPENAI_API_KEY="sk-proj-your-key-here"
+
+# Verify it's set
+echo $env:OPENAI_API_KEY
+```
+
+### STEP 1: Extract Regulations via OpenAI (Optional)
+
+> ⚠️ Skip if `f1_regulations_openai.csv` already exists
+
+```bash
+python run_extract.py
+```
+
+**What it does:**
+
+1. Fetches Wikipedia summaries for each F1 season (2017-2025)
+2. Sends each summary to GPT-4o-mini with prompt to extract regulations
+3. Parses JSON response and saves to CSV
+
+**Output:** `f1_regulations_openai.csv` (36 regulations)
+
+---
+
+### STEP 2: Run Notebook Cells in Order
+
+Open `progetto_data_man_1.1.ipynb` and run cells in this exact sequence:
+
+| Cell # | Section            | What it does                                        |
+| ------ | ------------------ | --------------------------------------------------- |
+| 1      | Imports            | Load libraries (pandas, numpy, requests, etc.)      |
+| 2      | Jolpica API        | Fetch 3853 qualifying results with pagination       |
+| 3      | Wikipedia API      | Scrape season summaries for 9 years                 |
+| 4      | Keyword Extraction | Parse summaries for regulation keywords             |
+| 5      | Load Regulations   | Load `f1_regulations_openai.csv` (OpenAI extracted) |
+| 6      | ATR Data           | Calculate wind tunnel/CFD allocations               |
+| 7      | Data Preparation   | Convert times, calculate gaps                       |
+| 8      | Data Integration   | Merge all datasets                                  |
+| 9      | Data Quality       | ISO 25012 assessment                                |
+| 10     | MongoDB            | Store data + run 2 queries                          |
+| 11     | Analysis           | Field spread visualization                          |
+
+---
+
+## Code Examples & Generalizations
+
+### 1. API Data Fetching with Pagination
+
+```python
+def fetch_paginated_api(base_url, year, limit=100):
+    """
+    Generic pattern for fetching paginated API data.
+    Used for Jolpica API to get all qualifying results.
+    """
+    all_results = []
+    offset = 0
+
+    while True:
+        url = f"{base_url}/{year}/qualifying.json?limit={limit}&offset={offset}"
+        response = requests.get(url)
+        data = response.json()
+
+        items = data['MRData']['RaceTable']['Races']
+        if not items:
+            break
+
+        all_results.extend(items)
+        offset += limit
+
+        if offset >= int(data['MRData']['total']):
+            break
+
+        time.sleep(0.3)  # Rate limiting
+
+    return all_results
+```
+
+### 2. Wikipedia API Scraping
+
+```python
+def scrape_wikipedia_summary(page_title):
+    """
+    Generic pattern for scraping Wikipedia page summaries.
+    Uses Wikipedia REST API for structured data.
+    """
+    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{page_title}"
+    headers = {'User-Agent': 'YourProject/1.0 (Educational)'}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json().get('extract', '')
+    return None
+```
+
+### 3. LLM-Based Data Extraction (OpenAI)
+
+```python
+def extract_structured_data_via_llm(text, schema, model='gpt-4o-mini'):
+    """
+    Generic pattern for using LLM to extract structured data from text.
+    Returns JSON that matches the provided schema.
+    """
+    import openai
+    import os
+
+    openai.api_key = os.getenv('OPENAI_API_KEY')
+
+    prompt = f"""Extract data from this text and return as JSON array:
+    Schema: {schema}
+    Text: {text}
+    Return only valid JSON."""
+
+    response = openai.chat.completions.create(
+        model=model,
+        messages=[{'role': 'user', 'content': prompt}],
+        temperature=0.3
+    )
+
+    return json.loads(response.choices[0].message.content)
+```
+
+### 4. Era Classification (Without Lambda)
+
+```python
+# Pattern: Vectorized conditional column creation
+import numpy as np
+
+# Instead of lambda:
+# df['Era'] = df['Year'].apply(lambda x: 'Pre-2022' if x < 2022 else 'Post-2022')
+
+# Use np.where (faster, no lambda):
+df['Era'] = np.where(df['Year'] < 2022, 'Pre-2022', 'Post-2022')
+```
+
+### 5. MongoDB Storage Pattern
+
+```python
+from pymongo import MongoClient
+
+def store_dataframe_to_mongodb(df, db_name, collection_name, connection_string):
+    """
+    Generic pattern for storing pandas DataFrame to MongoDB.
+    """
+    client = MongoClient(connection_string)
+    db = client[db_name]
+    collection = db[collection_name]
+
+    # Clear existing data
+    collection.delete_many({})
+
+    # Insert records
+    records = df.to_dict('records')
+    collection.insert_many(records)
+
+    return len(records)
+```
+
+### 6. Data Quality Assessment (ISO 25012)
+
+```python
+def assess_data_quality(df, name, expected_records=None):
+    """
+    Generic pattern for ISO 25012 data quality assessment.
+    Returns scores for 5 dimensions.
+    """
+    total_cells = df.size
+
+    # 1. COMPLETENESS: % non-null values
+    completeness = (1 - df.isnull().sum().sum() / total_cells) * 100
+
+    # 2. ACCURACY: expected vs actual
+    accuracy = min(len(df) / expected_records * 100, 100) if expected_records else 100
+
+    # 3. CONSISTENCY: duplicate check
+    consistency = (1 - df.duplicated().sum() / len(df)) * 100
+
+    # 4. TIMELINESS: data recency
+    timeliness = 100 if df['Year'].max() >= 2025 else 90
+
+    # 5. VALIDITY: type/format check
+    validity = 100  # Implement specific checks
+
+    return {
+        'Completeness': completeness,
+        'Accuracy': accuracy,
+        'Consistency': consistency,
+        'Timeliness': timeliness,
+        'Validity': validity,
+        'Overall': (completeness + accuracy + consistency + timeliness + validity) / 5
+    }
+```
+
+---
+
+## Project Files
+
+| File                           | Type     | Description                              |
+| ------------------------------ | -------- | ---------------------------------------- |
+| `progetto_data_man_1.1.ipynb`  | Notebook | Main analysis notebook                   |
+| `f1_regulations_openai.csv`    | Data     | 36 regulations extracted via GPT-4o-mini |
+| `run_extract.py`               | Script   | Re-run OpenAI extraction                 |
+| `walkthrough_mongo_quality.md` | Doc      | MongoDB + Data Quality guide             |
+| `f1_qualifying_complete.csv`   | Data     | Exported qualifying results              |
+| `f1_data_quality_report.csv`   | Data     | Quality metrics report                   |
+
+---
+
+## AI Model Used
+
+| Model           | Provider | Purpose               | Cost                           |
+| --------------- | -------- | --------------------- | ------------------------------ |
+| **gpt-4o-mini** | OpenAI   | Regulation extraction | ~$0.15/M input, $0.60/M output |
+
+**Total project cost:** < $0.01
+
+---
+
+## Key Metrics
+
+| Metric                | Value                          |
+| --------------------- | ------------------------------ |
+| Qualifying records    | 3,853                          |
+| Years covered         | 2017-2025                      |
+| Regulations extracted | 36                             |
+| Data sources          | 3 (Jolpica, Wikipedia, OpenAI) |
+| Quality dimensions    | 5 (ISO 25012)                  |
+
+---
 
 ## Authors
 
-- Romano Raffaele (romano.raff10@gmail.com)
-- Ilaria Mato (Ilaria.mato.02@gmail.com)
+| Name                | Email                    |
+| ------------------- | ------------------------ |
+| **Romano Raffaele** | romano.raff10@gmail.com  |
+| **Ilaria Mato**     | Ilaria.mato.02@gmail.com |
+| **Tony Dwara**      | Tonydawrabou@gmail.com   |
 
-## Project Structure
+---
 
-The main notebook `f1_dataMan_v3.ipynb` is organized into the following sections:
-
-### 1. Dependencies and Imports
-
-```python
-import pandas as pd
-import fastf1 as ff1
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
-import time
-import re
-import requests
-import json
-import os
-```
-
-**Required packages:**
-- `pandas`: Data manipulation and analysis
-- `fastf1`: Official F1 timing data API wrapper (historical data)
-- `selenium`: Browser automation for web scraping
-- `beautifulsoup4`: HTML parsing
-- `requests`: HTTP requests for OpenF1 API
-
-### 2. Cache Configuration
-
-The project implements a two-tier caching strategy:
-
-1. **FastF1 Cache**: Stores downloaded telemetry and timing data locally to avoid repeated API calls
-2. **JSON Cache**: Stores scraped race calendar data for quick access
-
-```python
-cache_dir = 'f1_cache'
-os.makedirs(cache_dir, exist_ok=True)
-ff1.Cache.enable_cache(cache_dir)
-```
-
-### 3. Data Acquisition: Web Scraping
-
-The `scrape_f1_races(years)` function extracts race calendar information from formula1.com.
-
-**Technical Implementation:**
-
-1. **Browser Automation**: Uses Selenium WebDriver in headless mode for JavaScript-rendered content
-2. **Cookie Handling**: Automatically dismisses cookie consent banners using WebDriverWait
-3. **Content Loading**: Scrolls the page to trigger lazy-loaded content
-4. **Data Extraction**: 
-   - Uses regex pattern `ROUND\s+(\d+)` to extract round numbers from link text
-   - Extracts GP names from URL slugs (e.g., `/racing/2024/bahrain` -> "Bahrain")
-5. **Deduplication**: Tracks seen rounds to prevent duplicate entries
-
-**Output Format:**
-```python
-[(year, round_number, gp_name), ...]
-# Example: [(2024, 1, 'Bahrain'), (2024, 2, 'Saudi Arabia'), ...]
-```
-
-### 4. Data Acquisition: FastF1 API
-
-The `collect_fastest_laps_fastf1(races, save_file)` function retrieves detailed lap timing data.
-
-**Technical Implementation:**
-
-1. **Session Loading**: Loads only lap data (telemetry, weather, and messages disabled for performance)
-2. **Fastest Lap Extraction**: Uses `session.laps.pick_fastest()` to identify the fastest lap
-3. **Time Formatting**: Converts timedelta objects to readable format (M:SS.mmm)
-4. **Error Handling**: Gracefully handles missing data or API failures
-5. **Incremental Saving**: Saves progress to CSV after each race to prevent data loss
-
-**Data Fields Collected:**
-- Year
-- Round
-- GP (Grand Prix name)
-- Driver (three-letter abbreviation)
-- Team
-- LapTime (formatted as M:SS.mmm)
-- LapTime_sec (total seconds for numerical analysis)
-
-### 5. Data Acquisition: OpenF1 API
-
-The `get_fastest_laps_openf1(years, save_file)` function provides an alternative data source for recent seasons (2023+).
-
-**Technical Implementation:**
-
-1. **Rate Limiting Protection**: 
-   - 1-second delay between requests
-   - Exponential backoff on 429 (rate limit) responses
-   - Automatic retry with configurable attempts
-2. **Session Discovery**: Queries `/v1/sessions` endpoint filtered by year and session type
-3. **Lap Data Retrieval**: Fetches lap times from `/v1/laps` endpoint
-4. **Fastest Lap Calculation**: Client-side minimum calculation on lap_duration field
-
-**API Endpoints Used:**
-- `https://api.openf1.org/v1/sessions?year={year}&session_type=Race`
-- `https://api.openf1.org/v1/laps?session_key={key}&is_pit_out_lap=false`
-
-### 6. Data Storage
-
-The project exports data in multiple formats:
-
-1. **JSON Format** (race calendar):
-   - `races_cycle1.json`: 2017-2021 race calendar
-   - `races_cycle2.json`: 2022-2025 race calendar
-
-2. **CSV Format** (timing data):
-   - `fastest_laps_cycle1.csv`: Fastest laps for 2017-2021
-   - `fastest_laps_cycle2.csv`: Fastest laps for 2022-2025
-
-### 7. Data Quality Considerations
-
-**Known Limitations:**
-
-1. **Historical Data Availability**: FastF1 has varying data quality for older seasons (pre-2018)
-2. **OpenF1 Coverage**: OpenF1 API only provides data from 2023 onwards
-3. **API Stability**: FastF1 relies on multiple backend APIs (F1 official, Ergast) which may have intermittent availability
-
-**Validation:**
-- Expected race counts per season are documented for verification
-- Scraped data can be cross-referenced with official F1 records
-
-## Technical Cycles
-
-The project analyzes two distinct technical regulation eras:
-
-### Cycle 1: 2017-2021 (Hybrid Era Peak)
-- Characterized by dominant Mercedes performance
-- Stable technical regulations with incremental changes
-- Total races: approximately 100 across 5 seasons
-
-### Cycle 2: 2022-2025 (Ground Effect Era)
-- New technical regulations introducing ground effect aerodynamics
-- Increased competitive parity
-- Expansion to 24 races per season
-
-## Usage
-
-### Initial Setup
-
-1. Install dependencies:
-```bash
-pip install pandas fastf1 selenium beautifulsoup4 requests
-```
-
-2. Ensure Chrome WebDriver is installed and in PATH
-
-### Running the Pipeline
-
-1. Execute all cells in order
-2. Scraping cells will populate JSON files
-3. FastF1/OpenF1 cells will populate CSV files
-4. Review output DataFrames for analysis
-
-### Loading Cached Data
-
-```python
-# Load race calendar
-with open('races_cycle1.json', 'r') as f:
-    races = [tuple(x) for x in json.load(f)]
-
-# Load timing data
-df = pd.read_csv('fastest_laps_cycle1.csv')
-```
-
-## File Structure
-
-```
-Data Managament/
-├── f1_dataMan_v3.ipynb      # Main analysis notebook
-├── README.md                 # This documentation
-├── f1_cache/                 # FastF1 cache directory
-├── races_cycle1.json         # Scraped calendar 2017-2021
-├── races_cycle2.json         # Scraped calendar 2022-2025
-├── fastest_laps_cycle1.csv   # Timing data 2017-2021
-└── fastest_laps_cycle2.csv   # Timing data 2022-2025
-```
-
-## References
-
-- FastF1 Documentation: https://docs.fastf1.dev/
-- OpenF1 API Documentation: https://openf1.org/
-- Formula 1 Official Website: https://www.formula1.com/
-
-## License
-
-This project is developed for educational purposes as part of a Data Management course.
+_F1 Data Management Project - December 2024_
+_University of Milano-Bicocca - Data Management Course_
