@@ -14,28 +14,28 @@ This project analyzes Formula 1 qualifying performance data from **2017-2025** t
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     DATA ACQUISITION LAYER                       │
+│                     DATA ACQUISITION LAYER                      │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ Jolpica API  │  │ Wikipedia API│  │  OpenAI API  │          │
-│  │ (REST)       │  │ (Scraping)   │  │ (LLM)        │          │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
-│         │                  │                  │                  │
-│         ▼                  ▼                  ▼                  │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ Qualifying   │  │  Season      │  │ Regulations  │          │
-│  │ Results      │  │  Summaries   │  │ Extraction   │          │
-│  │ 3853 records │  │  9 seasons   │  │ 36 records   │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ Jolpica API  │  │ Wikipedia API│  │  OpenAI API  │           │
+│  │ (REST)       │  │ (Scraping)   │  │ (LLM)        │           │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘           │
+│         │                  │                  │                 │
+│         ▼                  ▼                  ▼                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ Qualifying   │  │  Season      │  │ Regulations  │           │
+│  │ Results      │  │  Summaries   │  │ Extraction   │           │
+│  │ 3853 records │  │  9 seasons   │  │ 36 records   │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
                     ┌─────────────────┐
-                    │  DATA INTEGRATION│
+                    │ DATA INTEGRATION│
                     │  (Merge/Join)   │
                     └────────┬────────┘
-                              │
-                              ▼
+                             │
+                             ▼
                     ┌─────────────────┐
                     │   MongoDB       │
                     │   Storage       │
