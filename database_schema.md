@@ -9,6 +9,7 @@
 | `drivers` | Piloti con WDC, punti e vittorie | ~180 |
 | `events` | GP con pole position | ~190 |
 | `regulations` | Regolamenti FIA (da OpenAI) | ~37 |
+| `circuit_performance` | Confronto Pre/Post 2022 (9 circuiti stabili) | 9 |
 
 ---
 
@@ -20,6 +21,7 @@ erDiagram
     teams ||--o{ drivers : contains
     seasons ||--o{ events : contains
     regulations ||--|| seasons : references
+    circuit_performance ||--|| events : "derived from"
 
     seasons {
         int year PK
@@ -68,6 +70,17 @@ erDiagram
         string impact
         string source
         string era
+    }
+    
+    circuit_performance {
+        string circuit PK
+        float pre_best
+        int pre_year
+        float post_best
+        int post_year
+        float delta
+        float pct
+        string era_diff
     }
 ```
 
@@ -135,6 +148,20 @@ Regolamenti FIA estratti via OpenAI API.
 | `source` | TEXT | Fonte (FIA + anno) |
 | `era` | TEXT | Pre-2022 / Post-2022 |
 
+### `circuit_performance`
+Tabella derivata: confronto giro più veloce Pre vs Post 2022 su 9 circuiti stabili (layout invariato).
+
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `Circuit` | TEXT | PK - Nome circuito |
+| `Pre_Best` | REAL | Miglior tempo pre-2022 (secondi) |
+| `Pre_Year` | INTEGER | Anno del record pre-2022 |
+| `Post_Best` | REAL | Miglior tempo post-2022 (secondi) |
+| `Post_Year` | INTEGER | Anno del record post-2022 |
+| `Delta` | REAL | Differenza (+ = più lento, - = più veloce) |
+| `Pct` | REAL | Variazione percentuale |
+| `Era_Diff` | TEXT | FASTER / SLOWER |
+
 ---
 
 ## Query Utili
@@ -159,3 +186,11 @@ SELECT pole_driver, COUNT(*) as poles
 FROM events GROUP BY pole_driver 
 ORDER BY poles DESC LIMIT 10;
 ```
+
+### Circuit Performance: Pre vs Post 2022
+```sql
+SELECT Circuit, Delta, Pct, Era_Diff
+FROM circuit_performance
+ORDER BY Delta;
+```
+
