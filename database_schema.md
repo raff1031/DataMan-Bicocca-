@@ -1,19 +1,19 @@
-# F1 Data Management - Schema Database SQL
+# F1 Data Management - SQL Database Schema
 
-## Panoramica
+## Overview
 
-| Tabella | Descrizione | Records (stimati) |
-|---------|-------------|-------------------|
-| `seasons` | Anni di stagione F1 | 9 |
-| `teams` | Team per stagione con WCC e ATR | ~90 |
-| `drivers` | Piloti con WDC, punti e vittorie | ~180 |
-| `events` | GP con pole position | ~190 |
-| `regulations` | Regolamenti FIA (da OpenAI) | ~37 |
-| `circuit_performance` | Confronto Pre/Post 2022 (9 circuiti stabili) | 9 |
+| Table | Description | Records (estimated) |
+|-------|-------------|---------------------|
+| `seasons` | F1 season years | 9 |
+| `teams` | Teams per season with WCC and ATR | ~90 |
+| `drivers` | Drivers with WDC, points and wins | ~180 |
+| `events` | GPs with pole position | ~190 |
+| `regulations` | FIA regulations (from OpenAI) | ~37 |
+| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) | 9 |
 
 ---
 
-## Diagramma ER
+## ER Diagram
 
 ```mermaid
 erDiagram
@@ -86,85 +86,85 @@ erDiagram
 
 ---
 
-## Dettaglio Tabelle
+## Table Details
 
 ### `seasons`
-Anno della stagione F1.
+F1 season year.
 
-| Colonna | Tipo | Note |
-|---------|------|------|
+| Column | Type | Notes |
+|--------|------|-------|
 | `year` | INTEGER | PK, 2017-2025 |
 
 ### `teams`
-Team per ogni stagione con info WCC e ATR.
+Teams for each season with WCC and ATR info.
 
-| Colonna | Tipo | Note |
-|---------|------|------|
+| Column | Type | Notes |
+|--------|------|-------|
 | `year` | INTEGER | FK → seasons |
-| `name` | TEXT | Nome team |
-| `is_wcc` | INTEGER | 1 = vincitore WCC |
-| `atr_percentage` | REAL | % ATR (solo 2022+) |
-| `wt_hours_annual` | INTEGER | Ore wind tunnel annuali |
+| `name` | TEXT | Team name |
+| `is_wcc` | INTEGER | 1 = WCC winner |
+| `atr_percentage` | REAL | ATR % (2022+ only) |
+| `wt_hours_annual` | INTEGER | Annual wind tunnel hours |
 
 ### `drivers`
-Piloti con statistiche stagionali.
+Drivers with seasonal statistics.
 
-| Colonna | Tipo | Note |
-|---------|------|------|
+| Column | Type | Notes |
+|--------|------|-------|
 | `team_id` | INTEGER | FK → teams.rowid |
-| `name` | TEXT | Nome completo |
-| `code` | TEXT | Codice 3 lettere (VER, HAM...) |
-| `is_wdc` | INTEGER | 1 = vincitore WDC |
-| `points` | REAL | Punti totali stagione |
-| `wins` | INTEGER | Vittorie |
-| `races_count` | INTEGER | Gare disputate |
-| `first_round` | INTEGER | Prima gara |
-| `last_round` | INTEGER | Ultima gara |
+| `name` | TEXT | Full name |
+| `code` | TEXT | 3-letter code (VER, HAM...) |
+| `is_wdc` | INTEGER | 1 = WDC winner |
+| `points` | REAL | Total season points |
+| `wins` | INTEGER | Wins |
+| `races_count` | INTEGER | Races contested |
+| `first_round` | INTEGER | First race |
+| `last_round` | INTEGER | Last race |
 
 ### `events`
-Gran Premi con dati pole position.
+Grand Prix with pole position data.
 
-| Colonna | Tipo | Note |
-|---------|------|------|
+| Column | Type | Notes |
+|--------|------|-------|
 | `year` | INTEGER | FK → seasons |
-| `round` | INTEGER | Numero gara |
-| `gp_name` | TEXT | Nome GP |
-| `circuit` | TEXT | Nome circuito |
-| `circuit_id` | TEXT | ID stabile per entity matching |
-| `pole_time` | TEXT | Tempo pole (mm:ss.xxx) |
-| `pole_time_seconds` | REAL | Tempo in secondi |
+| `round` | INTEGER | Race number |
+| `gp_name` | TEXT | GP name |
+| `circuit` | TEXT | Circuit name |
+| `circuit_id` | TEXT | Stable ID for entity matching |
+| `pole_time` | TEXT | Pole time (mm:ss.xxx) |
+| `pole_time_seconds` | REAL | Time in seconds |
 | `pole_driver` | TEXT | Poleman |
-| `pole_team` | TEXT | Team poleman |
+| `pole_team` | TEXT | Poleman's team |
 
 ### `regulations`
-Regolamenti FIA estratti via OpenAI API.
+FIA regulations extracted via OpenAI API.
 
-| Colonna | Tipo | Note |
-|---------|------|------|
+| Column | Type | Notes |
+|--------|------|-------|
 | `year` | INTEGER | FK → seasons |
 | `type` | TEXT | Aero/Financial/Safety/Engine |
-| `description` | TEXT | Descrizione dettagliata |
+| `description` | TEXT | Detailed description |
 | `impact` | TEXT | Major/Minor/Revolutionary |
-| `source` | TEXT | Fonte (FIA + anno) |
+| `source` | TEXT | Source (FIA + year) |
 | `era` | TEXT | Pre-2022 / Post-2022 |
 
 ### `circuit_performance`
-Tabella derivata: confronto giro più veloce Pre vs Post 2022 su 9 circuiti stabili (layout invariato).
+Derived table: fastest lap comparison Pre vs Post 2022 on 9 stable circuits (unchanged layout).
 
-| Colonna | Tipo | Note |
-|---------|------|------|
-| `Circuit` | TEXT | PK - Nome circuito |
-| `Pre_Best` | REAL | Miglior tempo pre-2022 (secondi) |
-| `Pre_Year` | INTEGER | Anno del record pre-2022 |
-| `Post_Best` | REAL | Miglior tempo post-2022 (secondi) |
-| `Post_Year` | INTEGER | Anno del record post-2022 |
-| `Delta` | REAL | Differenza (+ = più lento, - = più veloce) |
-| `Pct` | REAL | Variazione percentuale |
+| Column | Type | Notes |
+|--------|------|-------|
+| `Circuit` | TEXT | PK - Circuit name |
+| `Pre_Best` | REAL | Best pre-2022 time (seconds) |
+| `Pre_Year` | INTEGER | Pre-2022 record year |
+| `Post_Best` | REAL | Best post-2022 time (seconds) |
+| `Post_Year` | INTEGER | Post-2022 record year |
+| `Delta` | REAL | Difference (+ = slower, - = faster) |
+| `Pct` | REAL | Percentage change |
 | `Era_Diff` | TEXT | FASTER / SLOWER |
 
 ---
 
-## Query Utili
+## Useful Queries
 
 ### WDC/WCC Winners
 ```sql
@@ -193,4 +193,3 @@ SELECT Circuit, Delta, Pct, Era_Diff
 FROM circuit_performance
 ORDER BY Delta;
 ```
-
