@@ -73,7 +73,8 @@ erDiagram
     }
     
     circuit_performance {
-        string circuit PK
+        string circuit FK
+        string circuitID PK
         float pre_best
         int pre_year
         float post_best
@@ -153,7 +154,8 @@ Tabella derivata: confronto giro più veloce Pre vs Post 2022 su 9 circuiti stab
 
 | Colonna | Tipo | Note |
 |---------|------|------|
-| `Circuit` | TEXT | PK - Nome circuito |
+| `Circuit` | TEXT | FK - Nome circuito |
+| `CircuitID` | TEXT | PK - Nome circuito |
 | `Pre_Best` | REAL | Miglior tempo pre-2022 (secondi) |
 | `Pre_Year` | INTEGER | Anno del record pre-2022 |
 | `Post_Best` | REAL | Miglior tempo post-2022 (secondi) |
