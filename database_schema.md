@@ -73,7 +73,8 @@ erDiagram
     }
     
     circuit_performance {
-        string circuit PK
+        string circuit FK
+        string circuitID PK
         float pre_best
         int pre_year
         float post_best
@@ -151,15 +152,16 @@ FIA regulations extracted via OpenAI API.
 ### `circuit_performance`
 Derived table: fastest lap comparison Pre vs Post 2022 on 9 stable circuits (unchanged layout).
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `Circuit` | TEXT | PK - Circuit name |
-| `Pre_Best` | REAL | Best pre-2022 time (seconds) |
-| `Pre_Year` | INTEGER | Pre-2022 record year |
-| `Post_Best` | REAL | Best post-2022 time (seconds) |
-| `Post_Year` | INTEGER | Post-2022 record year |
-| `Delta` | REAL | Difference (+ = slower, - = faster) |
-| `Pct` | REAL | Percentage change |
+| Colonna | Tipo | Note |
+|---------|------|------|
+| `Circuit` | TEXT | FK - Nome circuito |
+| `CircuitID` | TEXT | PK - Nome circuito |
+| `Pre_Best` | REAL | Miglior tempo pre-2022 (secondi) |
+| `Pre_Year` | INTEGER | Anno del record pre-2022 |
+| `Post_Best` | REAL | Miglior tempo post-2022 (secondi) |
+| `Post_Year` | INTEGER | Anno del record post-2022 |
+| `Delta` | REAL | Differenza (+ = più lento, - = più veloce) |
+| `Pct` | REAL | Variazione percentuale |
 | `Era_Diff` | TEXT | FASTER / SLOWER |
 
 ---
