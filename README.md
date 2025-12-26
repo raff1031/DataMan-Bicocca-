@@ -25,7 +25,7 @@ This project analyzes Formula 1 qualifying performance data from **2017-2025** t
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │ Qualifying   │  │  Season      │  │ Regulations  │           │
 │  │ Results      │  │  Summaries   │  │ Extraction   │           │
-│  │ 3853 records │  │  9 seasons   │  │ 36 records   │           │
+│  │ 3853 records │  │  9 seasons   │  │ 37 records   │           │
 │  └──────────────┘  └──────────────┘  └──────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -37,17 +37,34 @@ This project analyzes Formula 1 qualifying performance data from **2017-2025** t
                              │
                              ▼
                     ┌─────────────────┐
-                    │   MongoDB       │
-                    │   Storage       │
+                    │    SQLite       │
+                    │    Database     │
+                    │ (f1_data_       │
+                    │ management.db)  │
                     └─────────────────┘
 ```
+
+---
+
+## Database Schema
+
+The project uses **SQLite** for data storage. See [database_schema.md](database_schema.md) for full schema details.
+
+| Table | Description | Records |
+|-------|-------------|---------|
+| `seasons` | F1 season years | 9 |
+| `teams` | Teams per season with WCC and ATR | ~90 |
+| `drivers` | Drivers with WDC, points and wins | ~180 |
+| `events` | GPs with pole position | ~190 |
+| `regulations` | FIA regulations (from OpenAI) | ~37 |
+| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) | 9 |
 
 ---
 
 ## Prerequisites
 
 ```bash
-pip install pandas numpy requests openai pymongo matplotlib
+pip install pandas numpy requests openai matplotlib sqlite3
 ```
 
 ---
@@ -78,7 +95,7 @@ python run_extract.py
 2. Sends each summary to GPT-4o-mini with prompt to extract regulations
 3. Parses JSON response and saves to CSV
 
-**Output:** `f1_regulations_openai.csv` (36 regulations)
+**Output:** `f1_regulations_openai.csv` (37 regulations)
 
 ---
 
@@ -94,11 +111,13 @@ Open `progetto_data_man_1.1.ipynb` and run cells in this exact sequence:
 | 4      | Keyword Extraction | Parse summaries for regulation keywords             |
 | 5      | Load Regulations   | Load `f1_regulations_openai.csv` (OpenAI extracted) |
 | 6      | ATR Data           | Calculate wind tunnel/CFD allocations               |
-| 7      | Data Preparation   | Convert times, calculate gaps                       |
-| 8      | Data Integration   | Merge all datasets                                  |
-| 9      | Data Quality       | ISO 25012 assessment                                |
-| 10     | MongoDB            | Store data + run 2 queries                          |
-| 11     | Analysis           | Field spread visualization                          |
+| 7      | WDC/WCC Data       | Fetch championship winners per season               |
+| 8      | Data Preparation   | Convert times, calculate gaps                       |
+| 9      | Data Integration   | Merge all datasets                                  |
+| 10     | SQLite Storage     | Store data in `f1_data_management.db`               |
+| 11     | Data Quality       | ISO 25012 assessment                                |
+| 12     | Circuit Analysis   | Pre vs Post 2022 pole time comparison (9 circuits)  |
+| 13     | Field Spread       | Visualization of field competitiveness              |
 
 ---
 
@@ -179,40 +198,29 @@ def extract_structured_data_via_llm(text, schema, model='gpt-4o-mini'):
     return json.loads(response.choices[0].message.content)
 ```
 
-### 4. Era Classification (Without Lambda)
+### 4. Era Classification (Vectorized)
 
 ```python
 # Pattern: Vectorized conditional column creation
 import numpy as np
 
-# Instead of lambda:
-# df['Era'] = df['Year'].apply(lambda x: 'Pre-2022' if x < 2022 else 'Post-2022')
-
-# Use np.where (faster, no lambda):
+# Use np.where (faster than lambda):
 df['Era'] = np.where(df['Year'] < 2022, 'Pre-2022', 'Post-2022')
 ```
 
-### 5. MongoDB Storage Pattern
+### 5. SQLite Storage Pattern
 
 ```python
-from pymongo import MongoClient
+import sqlite3
 
-def store_dataframe_to_mongodb(df, db_name, collection_name, connection_string):
+def store_dataframe_to_sqlite(df, db_path, table_name):
     """
-    Generic pattern for storing pandas DataFrame to MongoDB.
+    Generic pattern for storing pandas DataFrame to SQLite.
     """
-    client = MongoClient(connection_string)
-    db = client[db_name]
-    collection = db[collection_name]
-
-    # Clear existing data
-    collection.delete_many({})
-
-    # Insert records
-    records = df.to_dict('records')
-    collection.insert_many(records)
-
-    return len(records)
+    conn = sqlite3.connect(db_path)
+    df.to_sql(table_name, conn, if_exists='replace', index=False)
+    conn.close()
+    return len(df)
 ```
 
 ### 6. Data Quality Assessment (ISO 25012)
@@ -257,11 +265,9 @@ def assess_data_quality(df, name, expected_records=None):
 | File                           | Type     | Description                              |
 | ------------------------------ | -------- | ---------------------------------------- |
 | `progetto_data_man_1.1.ipynb`  | Notebook | Main analysis notebook                   |
-| `f1_regulations_openai.csv`    | Data     | 36 regulations extracted via GPT-4o-mini |
-| `run_extract.py`               | Script   | Re-run OpenAI extraction                 |
-| `walkthrough_mongo_quality.md` | Doc      | MongoDB + Data Quality guide             |
-| `f1_qualifying_complete.csv`   | Data     | Exported qualifying results              |
-| `f1_data_quality_report.csv`   | Data     | Quality metrics report                   |
+| `f1_data_management.db`        | Database | SQLite database with all tables          |
+| `f1_regulations_openai.csv`    | Data     | 37 regulations extracted via GPT-4o-mini |
+| `database_schema.md`           | Doc      | Full database schema documentation       |
 
 ---
 
@@ -281,9 +287,10 @@ def assess_data_quality(df, name, expected_records=None):
 | --------------------- | ------------------------------ |
 | Qualifying records    | 3,853                          |
 | Years covered         | 2017-2025                      |
-| Regulations extracted | 36                             |
+| Regulations extracted | 37                             |
 | Data sources          | 3 (Jolpica, Wikipedia, OpenAI) |
 | Quality dimensions    | 5 (ISO 25012)                  |
+| Stable circuits analyzed | 9                           |
 
 ---
 
@@ -292,8 +299,8 @@ def assess_data_quality(df, name, expected_records=None):
 | Name                | Email                    |
 | ------------------- | ------------------------ |
 | **Romano Raffaele** | romano.raff10@gmail.com  |
+| **Tony Dwara**      | tonydawrabou@gmail.com   |
 | **Ilaria Mato**     | Ilaria.mato.02@gmail.com |
-| **Tony Dwara**      | Tonydawrabou@gmail.com   |
 
 ---
 
