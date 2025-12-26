@@ -50,14 +50,14 @@ This project analyzes Formula 1 qualifying performance data from **2017-2025** t
 
 The project uses **SQLite** for data storage. See [database_schema.md](database_schema.md) for full schema details.
 
-| Table | Description | Records |
-|-------|-------------|---------|
-| `seasons` | F1 season years | 9 |
-| `teams` | Teams per season with WCC and ATR | ~90 |
-| `drivers` | Drivers with WDC, points and wins | ~180 |
-| `events` | GPs with pole position | ~190 |
-| `regulations` | FIA regulations (from OpenAI) | ~37 |
-| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) | 9 |
+| Table | Description |
+|-------|-------------|
+| `seasons` | F1 season years |
+| `teams` | Teams per season with WCC and ATR | 
+| `drivers` | Drivers with WDC, points and wins | 
+| `events` | GPs with pole position | 
+| `regulations` | FIA regulations (from OpenAI) | 
+| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) |
 
 ---
 
@@ -275,9 +275,9 @@ def assess_data_quality(df, name, expected_records=None):
 
 | Model           | Provider | Purpose               | Cost                           |
 | --------------- | -------- | --------------------- | ------------------------------ |
-| **gpt-4o-mini** | OpenAI   | Regulation extraction | ~$0.15/M input, $0.60/M output |
+| **gpt-5-mini-2025-08-07** | OpenAI   | Regulation extraction | ~$0.25/M input, $2.00/M output |
 
-**Total project cost:** < $0.01
+**Total project cost:** < $0.04
 
 ---
 
@@ -304,5 +304,5 @@ def assess_data_quality(df, name, expected_records=None):
 
 ---
 
-_F1 Data Management Project - December 2024_
+_F1 Data Management Project - December 2025_
 _University of Milano-Bicocca - Data Management Course_
