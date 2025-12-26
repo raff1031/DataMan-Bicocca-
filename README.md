@@ -25,7 +25,7 @@ This project analyzes Formula 1 qualifying performance data from **2017-2025** t
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │ Qualifying   │  │  Season      │  │ Regulations  │           │
 │  │ Results      │  │  Summaries   │  │ Extraction   │           │
-│  │ 3853 records │  │  9 seasons   │  │ 37 records   │           │
+│  │ 3853 records │  │  9 seasons   │  │ 46 records   │           │
 │  └──────────────┘  └──────────────┘  └──────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
                               │
