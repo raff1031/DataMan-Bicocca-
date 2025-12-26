@@ -2,14 +2,14 @@
 
 ## Overview
 
-| Table | Description | Records (estimated) |
-|-------|-------------|---------------------|
-| `seasons` | F1 season years | 9 |
-| `teams` | Teams per season with WCC and ATR | ~90 |
-| `drivers` | Drivers with WDC, points and wins | ~180 |
-| `events` | GPs with pole position | ~190 |
-| `regulations` | FIA regulations (from OpenAI) | ~37 |
-| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) | 9 |
+| Table | Description |
+|-------|-------------|
+| `seasons` | F1 season years
+| `teams` | Teams per season with WCC and ATR
+| `drivers` | Drivers with WDC, points and wins 
+| `events` | GPs with pole position 
+| `regulations` | FIA regulations (from OpenAI) 
+| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) 
 
 ---
 
