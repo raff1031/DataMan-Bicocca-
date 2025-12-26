@@ -262,12 +262,12 @@ def assess_data_quality(df, name, expected_records=None):
 
 ## Project Files
 
-| File                           | Type     | Description                              |
-| ------------------------------ | -------- | ---------------------------------------- |
-| `progetto_data_man_1.1.ipynb`  | Notebook | Main analysis notebook                   |
-| `f1_data_management.db`        | Database | SQLite database with all tables          |
-| `f1_regulations_openai.csv`    | Data     | 37 regulations extracted via GPT-4o-mini |
-| `database_schema.md`           | Doc      | Full database schema documentation       |
+| File                           | Type     | Description                                        |
+| ------------------------------ | -------- | -------------------------------------------------- |
+| `progetto_data_man_1.1.ipynb`  | Notebook | Main analysis notebook                             |
+| `f1_data_management.db`        | Database | SQLite database with all tables                    |
+| `f1_regulations_openai.csv`    | Data     | 46 regulations extracted via gpt-5-mini-2025-08-07 |
+| `database_schema.md`           | markdow  | Full database schema documentation                 |
 
 ---
 
