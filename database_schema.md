@@ -4,12 +4,13 @@
 
 | Table | Description |
 |-------|-------------|
-| `seasons` | F1 season years
-| `teams` | Teams per season with WCC and ATR
-| `drivers` | Drivers with WDC, points and wins 
-| `events` | GPs with pole position 
-| `regulations` | FIA regulations (from OpenAI) 
-| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) 
+| `seasons` | F1 season years with WDC/WCC winners |
+| `teams` | Teams per season with WCC and ATR |
+| `drivers` | Drivers with WDC, races count |
+| `events` | GPs with pole position |
+| `regulations` | FIA regulations (from OpenAI) |
+| `field_spread` | P1-P10 gap per GP (competitiveness) |
+| `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) |
 
 ---
 
@@ -21,14 +22,17 @@ erDiagram
     teams ||--o{ drivers : contains
     seasons ||--o{ events : contains
     regulations ||--|| seasons : references
+    field_spread ||--|| events : "derived from"
     circuit_performance ||--|| events : "derived from"
 
     seasons {
         int year PK
+        string wdc_driver
+        string wdc_team
+        string wcc_team
     }
     
     teams {
-        int id PK
         int year FK
         string name
         bool is_wcc
@@ -37,20 +41,17 @@ erDiagram
     }
     
     drivers {
-        int id PK
-        int team_id FK
-        string name
+        int year FK
         string code
+        string name
+        string team
         bool is_wdc
-        float points
-        int wins
         int races_count
         int first_round
         int last_round
     }
     
     events {
-        int id PK
         int year FK
         int round
         string gp_name
@@ -63,13 +64,22 @@ erDiagram
     }
     
     regulations {
-        int id PK
         int year FK
         string type
         string description
         string impact
         string source
         string era
+    }
+    
+    field_spread {
+        int year FK
+        int round
+        string gp_name
+        string era
+        float p1_time
+        float p10_time
+        float spread
     }
     
     circuit_performance {
@@ -89,11 +99,14 @@ erDiagram
 ## Table Details
 
 ### `seasons`
-F1 season year.
+F1 season year with championship winners.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `year` | INTEGER | PK, 2017-2025 |
+| `wdc_driver` | TEXT | World Drivers' Champion |
+| `wdc_team` | TEXT | WDC's team |
+| `wcc_team` | TEXT | World Constructors' Champion |
 
 ### `teams`
 Teams for each season with WCC and ATR info.
@@ -103,7 +116,7 @@ Teams for each season with WCC and ATR info.
 | `year` | INTEGER | FK → seasons |
 | `name` | TEXT | Team name |
 | `is_wcc` | INTEGER | 1 = WCC winner |
-| `atr_percentage` | REAL | ATR % (2022+ only) |
+| `atr_percentage` | REAL | ATR % (2021+ only) |
 | `wt_hours_annual` | INTEGER | Annual wind tunnel hours |
 
 ### `drivers`
@@ -111,12 +124,11 @@ Drivers with seasonal statistics.
 
 | Column | Type | Notes |
 |--------|------|-------|
-| `team_id` | INTEGER | FK → teams.rowid |
-| `name` | TEXT | Full name |
+| `year` | INTEGER | FK → seasons |
 | `code` | TEXT | 3-letter code (VER, HAM...) |
+| `name` | TEXT | Full name |
+| `team` | TEXT | Team name |
 | `is_wdc` | INTEGER | 1 = WDC winner |
-| `points` | REAL | Total season points |
-| `wins` | INTEGER | Wins |
 | `races_count` | INTEGER | Races contested |
 | `first_round` | INTEGER | First race |
 | `last_round` | INTEGER | Last race |
@@ -148,6 +160,19 @@ FIA regulations extracted via OpenAI API.
 | `source` | TEXT | Source (FIA + year) |
 | `era` | TEXT | Pre-2022 / Post-2022 |
 
+### `field_spread`
+Derived table: P1-P10 gap per Grand Prix to measure field competitiveness.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `year` | INTEGER | FK → seasons |
+| `round` | INTEGER | Race number |
+| `gp_name` | TEXT | GP name |
+| `era` | TEXT | Pre-2022 / Post-2022 |
+| `p1_time` | REAL | P1 best time (seconds) |
+| `p10_time` | REAL | P10 best time (seconds) |
+| `spread` | REAL | Gap P1-P10 (seconds) |
+
 ### `circuit_performance`
 Derived table: fastest lap comparison Pre vs Post 2022 on 9 stable circuits (unchanged layout).
 
@@ -168,10 +193,8 @@ Derived table: fastest lap comparison Pre vs Post 2022 on 9 stable circuits (unc
 
 ### WDC/WCC Winners
 ```sql
-SELECT t.year, d.name AS wdc, t.name AS team, 
-       (SELECT name FROM teams WHERE year=t.year AND is_wcc=1) AS wcc
-FROM teams t JOIN drivers d ON t.rowid = d.team_id
-WHERE d.is_wdc = 1 ORDER BY t.year;
+SELECT year, wdc_driver, wdc_team, wcc_team
+FROM seasons ORDER BY year;
 ```
 
 ### Regulations by Year
@@ -187,9 +210,33 @@ FROM events GROUP BY pole_driver
 ORDER BY poles DESC LIMIT 10;
 ```
 
+### Field Spread by Era (Competitiveness)
+```sql
+SELECT era, ROUND(AVG(spread), 2) as avg_spread, COUNT(*) as races
+FROM field_spread
+GROUP BY era;
+-- Result: Pre-2022: 2.55s, Post-2022: 2.15s → More competitive!
+```
+
 ### Circuit Performance: Pre vs Post 2022
 ```sql
 SELECT Circuit, Delta, Pct, Era_Diff
 FROM circuit_performance
 ORDER BY Delta;
 ```
+
+---
+
+## Design Rationale
+
+This database follows a **Data Mart** approach optimized for the research question:
+> *"Did ground effect regulations improve competitiveness and performance?"*
+
+| Table | Answers |
+|-------|---------|
+| `field_spread` | **Competitiveness** (P1-P10 gap by era) |
+| `circuit_performance` | **Speed** (Pre/Post 2022 on stable circuits) |
+| `regulations` | **Context** (when ground effect was introduced) |
+| `seasons` | **Dominance** (WDC/WCC patterns) |
+
+The raw qualifying dataset (3853 records) is kept in Pandas for flexible analysis, while SQL stores only aggregated/dimensional tables needed for final insights.
