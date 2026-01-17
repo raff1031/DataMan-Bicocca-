@@ -17,22 +17,22 @@ This project analyzes Formula 1 qualifying performance data from **2017-2025** t
 │                     DATA ACQUISITION LAYER                      │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
-│  │ Jolpica API  │  │ Wikipedia API│  │  OpenAI API  │           │
-│  │ (REST)       │  │ (Scraping)   │  │ (LLM)        │           │
+│  │ Jolpica API  │  │  OpenAI API  │  │   FIA ATR    │           │
+│  │ (REST)       │  │  (LLM)       │  │ (Allocations)│           │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘           │
 │         │                  │                  │                 │
 │         ▼                  ▼                  ▼                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
-│  │ Qualifying   │  │  Season      │  │ Regulations  │           │
-│  │ Results      │  │  Summaries   │  │ Extraction   │           │
-│  │ 3853 records │  │  9 seasons   │  │ 46 records   │           │
+│  │ Qualifying   │  │ Regulations  │  │ Wind Tunnel  │           │
+│  │ + WDC/WCC    │  │ Extraction   │  │ CFD Limits   │           │
+│  │ 3853 records │  │ 46 records   │  │ 40 records   │           │
 │  └──────────────┘  └──────────────┘  └──────────────┘           │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
                     ┌─────────────────┐
                     │ DATA INTEGRATION│
-                    │  (Merge/Join)   │
+                    │ + Entity Resol. │
                     └────────┬────────┘
                              │
                              ▼
@@ -52,11 +52,12 @@ The project uses **SQLite** for data storage. See [database_schema.md](database_
 
 | Table | Description |
 |-------|-------------|
-| `seasons` | F1 season years |
+| `seasons` | F1 season years with WDC/WCC winners |
 | `teams` | Teams per season with WCC and ATR | 
-| `drivers` | Drivers with WDC, points and wins | 
+| `drivers` | Drivers with WDC, races count | 
 | `events` | GPs with pole position | 
 | `regulations` | FIA regulations (from OpenAI) | 
+| `field_spread` | P1-P10 gap per GP (competitiveness) |
 | `circuit_performance` | Pre/Post 2022 comparison (9 stable circuits) |
 
 ---
@@ -64,7 +65,7 @@ The project uses **SQLite** for data storage. See [database_schema.md](database_
 ## Prerequisites
 
 ```bash
-pip install pandas numpy requests openai matplotlib sqlite3
+pip install pandas numpy requests openai matplotlib
 ```
 
 ---
@@ -85,17 +86,9 @@ echo $env:OPENAI_API_KEY
 
 > ⚠️ Skip if `f1_regulations_openai.csv` already exists
 
-```bash
-python run_extract.py
-```
+The notebook uses OpenAI GPT to extract F1 regulations from parametric knowledge (no scraping).
 
-**What it does:**
-
-1. Fetches Wikipedia summaries for each F1 season (2017-2025)
-2. Sends each summary to GPT-4o-mini with prompt to extract regulations
-3. Parses JSON response and saves to CSV
-
-**Output:** `f1_regulations_openai.csv` (37 regulations)
+**Output:** `f1_regulations_openai.csv` (46 regulations)
 
 ---
 
@@ -107,17 +100,16 @@ Open `progetto_data_man_1.1.ipynb` and run cells in this exact sequence:
 | ------ | ------------------ | --------------------------------------------------- |
 | 1      | Imports            | Load libraries (pandas, numpy, requests, etc.)      |
 | 2      | Jolpica API        | Fetch 3853 qualifying results with pagination       |
-| 3      | Wikipedia API      | Scrape season summaries for 9 years                 |
-| 4      | Keyword Extraction | Parse summaries for regulation keywords             |
-| 5      | Load Regulations   | Load `f1_regulations_openai.csv` (OpenAI extracted) |
-| 6      | ATR Data           | Calculate wind tunnel/CFD allocations               |
-| 7      | WDC/WCC Data       | Fetch championship winners per season               |
-| 8      | Data Preparation   | Convert times, calculate gaps                       |
-| 9      | Data Integration   | Merge all datasets                                  |
-| 10     | SQLite Storage     | Store data in `f1_data_management.db`               |
-| 11     | Data Quality       | ISO 25012 assessment                                |
-| 12     | Circuit Analysis   | Pre vs Post 2022 pole time comparison (9 circuits)  |
-| 13     | Field Spread       | Visualization of field competitiveness              |
+| 3      | Entity Resolution  | Normalize team names across years                   |
+| 4      | Load Regulations   | Load `f1_regulations_openai.csv` (OpenAI extracted) |
+| 5      | ATR Data           | Calculate wind tunnel/CFD allocations               |
+| 6      | WDC/WCC Data       | Fetch championship winners per season               |
+| 7      | Data Preparation   | Convert times, calculate gaps                       |
+| 8      | Data Integration   | Merge all datasets                                  |
+| 9      | SQLite Storage     | Store data in `f1_data_management.db`               |
+| 10     | Data Quality       | ISO 25012 assessment                                |
+| 11     | Circuit Analysis   | Pre vs Post 2022 pole time comparison (9 circuits)  |
+| 12     | Field Spread       | Visualization of field competitiveness              |
 
 ---
 
@@ -154,40 +146,38 @@ def fetch_paginated_api(base_url, year, limit=100):
     return all_results
 ```
 
-### 2. Wikipedia API Scraping
+### 2. Entity Resolution Pattern
 
 ```python
-def scrape_wikipedia_summary(page_title):
-    """
-    Generic pattern for scraping Wikipedia page summaries.
-    Uses Wikipedia REST API for structured data.
-    """
-    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{page_title}"
-    headers = {'User-Agent': 'YourProject/1.0 (Educational)'}
+# Team name normalization mapping
+TEAM_ENTITY_MAP = {
+    'Toro Rosso': 'RB F1 Team',
+    'AlphaTauri': 'RB F1 Team',
+    'Force India': 'Aston Martin',
+    'Racing Point': 'Aston Martin',
+    'Alfa Romeo': 'Sauber',
+    'Renault': 'Alpine F1 Team',
+}
 
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json().get('extract', '')
-    return None
+def resolve_team_entity(team_name):
+    """Resolve team name to canonical entity."""
+    return TEAM_ENTITY_MAP.get(team_name, team_name)
+
+df['Team_Entity'] = df['Team'].apply(resolve_team_entity)
 ```
 
 ### 3. LLM-Based Data Extraction (OpenAI)
 
 ```python
-def extract_structured_data_via_llm(text, schema, model='gpt-4o-mini'):
+def extract_structured_data_via_llm(prompt, model='gpt-5-mini'):
     """
-    Generic pattern for using LLM to extract structured data from text.
+    Generic pattern for using LLM to extract structured data.
     Returns JSON that matches the provided schema.
     """
     import openai
     import os
 
     openai.api_key = os.getenv('OPENAI_API_KEY')
-
-    prompt = f"""Extract data from this text and return as JSON array:
-    Schema: {schema}
-    Text: {text}
-    Return only valid JSON."""
 
     response = openai.chat.completions.create(
         model=model,
@@ -226,36 +216,21 @@ def store_dataframe_to_sqlite(df, db_path, table_name):
 ### 6. Data Quality Assessment (ISO 25012)
 
 ```python
-def assess_data_quality(df, name, expected_records=None):
+def assess_data_quality(df, name, exclude_cols=None):
     """
     Generic pattern for ISO 25012 data quality assessment.
-    Returns scores for 5 dimensions.
+    Supports excluding structural null columns.
     """
-    total_cells = df.size
-
-    # 1. COMPLETENESS: % non-null values
-    completeness = (1 - df.isnull().sum().sum() / total_cells) * 100
-
-    # 2. ACCURACY: expected vs actual
-    accuracy = min(len(df) / expected_records * 100, 100) if expected_records else 100
-
-    # 3. CONSISTENCY: duplicate check
-    consistency = (1 - df.duplicated().sum() / len(df)) * 100
-
-    # 4. TIMELINESS: data recency
-    timeliness = 100 if df['Year'].max() >= 2025 else 90
-
-    # 5. VALIDITY: type/format check
-    validity = 100  # Implement specific checks
-
-    return {
-        'Completeness': completeness,
-        'Accuracy': accuracy,
-        'Consistency': consistency,
-        'Timeliness': timeliness,
-        'Validity': validity,
-        'Overall': (completeness + accuracy + consistency + timeliness + validity) / 5
-    }
+    if exclude_cols:
+        df_check = df.drop(columns=exclude_cols, errors='ignore')
+    else:
+        df_check = df
+    
+    total_cells = df_check.size
+    null_cells = df_check.isnull().sum().sum()
+    completeness = (1 - null_cells / total_cells) * 100
+    
+    return {'Dataset': name, 'Completeness': completeness}
 ```
 
 ---
@@ -267,7 +242,8 @@ def assess_data_quality(df, name, expected_records=None):
 | `progetto_data_man_1.1.ipynb`  | Notebook | Main analysis notebook                             |
 | `f1_data_management.db`        | Database | SQLite database with all tables                    |
 | `f1_regulations_openai.csv`    | Data     | 46 regulations extracted via gpt-5-mini-2025-08-07 |
-| `database_schema.md`           | markdow  | Full database schema documentation                 |
+| `f1_atr_allocations.csv`       | Data     | Wind tunnel/CFD allocations (2021+)                |
+| `database_schema.md`           | Markdown | Full database schema documentation                 |
 
 ---
 
@@ -283,14 +259,23 @@ def assess_data_quality(df, name, expected_records=None):
 
 ## Key Metrics
 
-| Metric                | Value                          |
-| --------------------- | ------------------------------ |
-| Qualifying records    | 3,853                          |
-| Years covered         | 2017-2025                      |
-| Regulations extracted | 37                             |
-| Data sources          | 3 (Jolpica, Wikipedia, OpenAI) |
-| Quality dimensions    | 5 (ISO 25012)                  |
-| Stable circuits analyzed | 9                           |
+| Metric                   | Value                               |
+| ------------------------ | ----------------------------------- |
+| Qualifying records       | 3,853                               |
+| Years covered            | 2017-2025                           |
+| Regulations extracted    | 46                                  |
+| Data sources             | 4 (Jolpica, OpenAI, FIA ATR, Entity Resolution) |
+| Quality dimensions       | 5 (ISO 25012)                       |
+| Stable circuits analyzed | 9                                   |
+
+---
+
+## Key Results
+
+| Metric | Pre-2022 | Post-2022 | Interpretation |
+|--------|----------|-----------|----------------|
+| **Field Spread (P1-P10)** | 2.55s | 2.15s | **+16% more competitive** |
+| **Pole Times** | Baseline | -1.2% avg | **Cars slightly faster** |
 
 ---
 
@@ -304,5 +289,5 @@ def assess_data_quality(df, name, expected_records=None):
 
 ---
 
-_F1 Data Management Project - December 2025_
+_F1 Data Management Project - January 2026_
 _University of Milano-Bicocca - Data Management Course_
