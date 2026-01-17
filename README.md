@@ -298,9 +298,9 @@ def assess_data_quality(df, name, expected_records=None):
 
 | Name                | Email                    |
 | ------------------- | ------------------------ |
-| **Romano Raffaele** | romano.raff10@gmail.com  |
-| **Tony Dwara**      | tonydawrabou@gmail.com   |
-| **Ilaria Mato**     | Ilaria.mato.02@gmail.com |
+| **Romano Raffaele** |  |
+| **Tony Dwara**      |  |
+| **Ilaria Mato**     |  |
 
 ---
 
